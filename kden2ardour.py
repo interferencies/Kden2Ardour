@@ -113,6 +113,9 @@ class Kden2Ardour:
         Trabajaremos entonces con un xmldom y al finalizar los procesos trabajaremos la escritura de ese xml
     """   
     def createArdourSession(self):
+    
+        #ID counter
+        id_counter = 1000
         path = "%s/ardour_project"%PATH_
         # Borramos un posible proyecto
         if os.path.isdir(path) : shutil.rmtree(path)
@@ -127,7 +130,7 @@ class Kden2Ardour:
         Session.set("version","3.0.0")
         Session.set("name","Project KdenLive2Ardour")
         Session.set("sample-rate","48000")
-        Session.set("id-counter","443")
+        Session.set("id-counter","1000")
         Session.set("event-counter","0")
         
         #Config
@@ -168,6 +171,7 @@ class Kden2Ardour:
 
         ## Recuperamos las fuentes del proyecto de KdenLive (en KProducers)        
         for i in self.getKProducers():
+
             ## transcodeamos las fuentes a la carpeta de audiofiles
             ## example: ffmpeg -i video.avi -vn audio.wav
             name = ''.join((i["resource"].split("/")[-1]).split(".")[0:-1])
@@ -175,80 +179,118 @@ class Kden2Ardour:
             p = "%s/%s.wav"%(audio_path,name)
             pl = "%s/%s-L.wav"%(audio_path,name)
             pr = "%s/%s-R.wav"%(audio_path,name)
+            channels = i["channels"]
+            freq = i["frequency"]
             
+            # Extraemos audio del video
             subprocess.Popen(["ffmpeg","-i",res,"-vn","-y","-loglevel","quiet",p]) #input,non_video,force_overwrite
-            subprocess.Popen(["ecasound","-q","-a:1,2","-i",p,"-a:1","-f:16,1,48000","-o",pl,"-a:2","-f:16,1,48000","-o",pr])
+            
+            # Separamos los dos canales de audio si es estereo
+            if channels == "2" : 
+                
+                subprocess.Popen(["ecasound","-q","-a:1,2","-i",p,"-a:1","-f:16,1,48000","-o",pl,"-a:2","-f:16,1,48000","-o",pr])
+                
+                ## Left
+                Source = etree.SubElement(Sources,"Source")
+                Source.set("name",name+"_L")
+                Source.set("type","audio")
+                Source.set("flags","Writable,CanRename,RemovableIfEmpty")
+                Source.set("id",str(id_counter))
+                id_counter=id_counter+1
+                Source.set("channel","0")
+                Source.set("origin",pl)
+                
+                ## right
+                Source = etree.SubElement(Sources,"Source")
+                Source.set("name",name+"_R")
+                Source.set("type","audio")
+                Source.set("flags","Writable,CanRename,RemovableIfEmpty")
+                Source.set("id",str(id_counter))
+                id_counter=id_counter+1
+                Source.set("channel","0")
+                Source.set("origin",pr)
+            
+            else : 
+                
+                ## MONO
+                Source = etree.SubElement(Sources,"Source")
+                Source.set("name",name)
+                Source.set("type","audio")
+                Source.set("flags","Writable,CanRename,RemovableIfEmpty")
+                Source.set("id",str(id_counter))
+                id_counter=id_counter+1
+                Source.set("channel","0")
+                Source.set("origin",p)
+            
             print "Exportado fichero %s"%p
             
             ## BUG: No me lee todos los ficheros para convertir.. (03/02/2012)
-       
-            ## Left
-            Source = etree.SubElement(Sources,"Source")
-            Source.set("name",name+"_L")
-            Source.set("type","audio")
-            Source.set("flags","Writable,CanRename,RemovableIfEmpty")
-            Source.set("id","331")
-            Source.set("channel","0")
-            Source.set("origin",pl)
-            
-            ## right
-            Source = etree.SubElement(Sources,"Source")
-            Source.set("name",name+"_R")
-            Source.set("type","audio")
-            Source.set("flags","Writable,CanRename,RemovableIfEmpty")
-            Source.set("id","331")
-            Source.set("channel","0")
-            Source.set("origin",pr)
         
         #Regions
+ 
+        # En Kdenlive se definen estas regiones en la lista de producers
+ 
         Regions = etree.SubElement(Session,"Regions")
-        Region = etree.SubElement(Regions,"Region")
-        Region.set("name","nome")
-        Region.set("id","319")
-        Region.set("type","audio")
-        Region.set("position","0")
-        Region.set("start","0")
-        Region.set("length","1214")
-        Region.set("channels","2")
-        Region.set("source-0","317")
-        Region.set("source-1","318")
-        Region.set("master-source-0","317")
-        Region.set("master-source-1","318")
-        Region.set("stretch","1")
-        Region.set("muted","0")
-        Region.set("opaque","1")
-        Region.set("automatic","0")
-        Region.set("locked","0")
-        Region.set("automatic","0")
-        Region.set("whole-file","0")
-        Region.set("import","0")
-        Region.set("external","0")
-        Region.set("sync-marked","0")
-        Region.set("left-of-split","0")
-        Region.set("right-of-split","0")
-        Region.set("hidden","0")
-        Region.set("position-locked","0")
-        Region.set("valid-transcients","0")
-        Region.set("sync-position","0")
-        Region.set("layer","0")
-        Region.set("ancestral-start","0")
-        Region.set("ancestral-length","0")
-        Region.set("shift","1")
-        Region.set("positional-lock-style","AudioTime")
-        Region.set("envelope-active","0")
-        Region.set("default-fade-in","1")
-        Region.set("default-fade-out","1")
-        Region.set("fade-in-active","1")
-        Region.set("fade-out-active","1")
-        Region.set("scale-amplitude","1")
-        Region.set("first-edit","nothing")
 
-        Envelope = etree.SubElement(Regions,"Envelope")
-        Envelope.set("default","yes")
-        FadeIn = etree.SubElement(Regions,"FadeIn")
-        FadeIn.set("default","yes")
-        FadeOut = etree.SubElement(Regions,"FadeOut")
-        FadeOut.set("default","yes")
+        for i in self.getProducers():
+
+            rname = ''.join((i["resource"].split("/")[-1]).split(".")[0:-1])
+            ## 1 fp a 25fps = 40ms -> 1000/25
+            if i["resource"] != "black" :
+                #print i["inTime"],i["resource"]
+                #sys.exit()
+                start = int(i["inTime"])*40
+                length = int(i["length"])*40
+                ## comprobar si el nombre ya existe en el archivo y si es asi anhadirle un .n
+
+                Region = etree.SubElement(Regions,"Region")
+                Region.set("name",name)
+                Region.set("id",str(id_counter))
+                id_counter=id_counter+1
+                Region.set("type","audio")
+                Region.set("position","0")
+                Region.set("start",str(start))
+                Region.set("length",str(length))
+                Region.set("channels","2")
+                Region.set("source-0","317")
+                Region.set("source-1","318")
+                Region.set("master-source-0","317")
+                Region.set("master-source-1","318")
+                Region.set("stretch","1")
+                Region.set("muted","0")
+                Region.set("opaque","1")
+                Region.set("automatic","0")
+                Region.set("locked","0")
+                Region.set("automatic","0")
+                Region.set("whole-file","0")
+                Region.set("import","0")
+                Region.set("external","0")
+                Region.set("sync-marked","0")
+                Region.set("left-of-split","0")
+                Region.set("right-of-split","0")
+                Region.set("hidden","0")
+                Region.set("position-locked","0")
+                Region.set("valid-transcients","0")
+                Region.set("sync-position","0")
+                Region.set("layer","0")
+                Region.set("ancestral-start","0")
+                Region.set("ancestral-length","0")
+                Region.set("shift","1")
+                Region.set("positional-lock-style","AudioTime")
+                Region.set("envelope-active","0")
+                Region.set("default-fade-in","1")
+                Region.set("default-fade-out","1")
+                Region.set("fade-in-active","1")
+                Region.set("fade-out-active","1")
+                Region.set("scale-amplitude","1")
+                Region.set("first-edit","nothing")
+
+                Envelope = etree.SubElement(Regions,"Envelope")
+                Envelope.set("default","yes")
+                FadeIn = etree.SubElement(Regions,"FadeIn")
+                FadeIn.set("default","yes")
+                FadeOut = etree.SubElement(Regions,"FadeOut")
+                FadeOut.set("default","yes")
         
         # Locations
         Locations = etree.SubElement(Session,"Locations")
@@ -350,12 +392,11 @@ class Kden2Ardour:
         Clock.set("mode","Timecode")
         Clock.set("on","yes")
             
+        Session.set("id-counter",str(id_counter))
 
         print(etree.tostring(Session,pretty_print=True))
-            
-#        sourceLinks = {}
-#        for i in self.getProducers():
-#            print 'Informacion Recurso PID=',i["pid"],": Resource",i["resource"]," KProducerINFO",self.getKProducer(i["resource"])," Position IN:",i["inTime"],"- Out:",i["outTime"]
+        
+        sys.exit()
 
 
 if __name__=="__main__":    

@@ -1,0 +1,294 @@
+# PROPUESTA DE APLICACION PARA EL INTERCAMBIO DE FICHEROS CINELERRA <-> ARDOUR
+
+## NECESIDADES
+
+Trabajando de manera distribuida necesitamos crear un estándard de trabajo común entre los distintos softs de desarrollo audiovisual en sistemas GNU/Linux.
+Tomamos como ejemplo la creación de un documental colaborativo producido en Olholivre.NET usando solo herramientas libres, Cinelerra para su edición y Ardour3+XJadeo para la postproducción de sonido. En la actualidad hemos pensado que una buena manera de actualizar este proyecto sería poder experimentar con otro editor de vídeo, por lo que apostamos por trabajar usando Kdenlive.
+De estos dos paquetes no parece existir un sistema de intercambio claro de archivos, por lo que, en esta primera fase, crearemos una pequeña aplicación para realizar un transofrmación del proyecto ya realizado bajo Cinelerra a Ardour3, y así poder trabajar el audio de una mucho más cómoda y sincronizada, tal y como se trabaja con otros softs comerciales.
+
+## Proyecto & Documentación
+
+Usaremos la wiki de Olholivre.NET como elemento de documentación en el desarrollo de esta propuesta del conversor de sesiones y el repositiorio GIT de Interferencies para el intercambio de código.
+
+## ANALISIS DE POSIBLES STANDARES DE INTERCAMBIO
+
+Unos posibles formatos de intercambio de datos utilizados:
+
+### OMF	
+    http://en.wikipedia.org/wiki/Open_Media_Framework_Interchange
+	Formato de intercambio de Avid 
+	Ingenieria inversa, no hay especificación clara
+	En las fuentes de ardour hay un test de un conversor
+
+### AAF 	
+    http://www.edlmax.com/FormatAaf.htm
+	Format de intercabmio de la AAF Association
+	Tiene un SDK de desarrollo
+	http://en.wikipedia.org/wiki/Advanced_Authoring_Format
+	Info desarrolladores: http://www.amwa.tv/developers.shtml
+	http://aaf.sourceforge.net/	
+	
+### EDL	
+    http://www.edlmax.com/EdlMaxHelp/Edl/maxguide.html#format%
+	http://en.wikipedia.org/wiki/Edit_decision_list
+	Parseador para Kdenlive - https://github.com/barry-lyndon/KdenParse
+		-> interesante para saber el uso de librerias en python para el 
+
+### ARDOUR SESSION FILE	
+    http://oldmixtapes.blogspot.com/2010/06/ardour-session-files-are-xml-and-this.html
+
+## FUENTES SOBRE USOS DE ARDOUR
+
+* RECOPILATORIO DE SFT AUDIO http://oldmixtapes.blogspot.com/2010/03/21-linux-music-and-audio-production.html
+* Plugin para ardour para compartir session por GIT - https://github.com/AMMD/ardour-git
+* Nuevo soft parecido al Ableton - http://www.bitwig.com/bitwig_studio.php
+* Plugins VST for LInux  - http://ardour.org/node/4660
+
+## SOFT DE INTERCAMBIO
+
+* AATRANSLATOR - http://www.aatranslator.com.au/
+* SCRIPT EN UTILS DE LAS SOURCES DE ARDOUR3 - export OMF -> Ardour Session
+* Parseador para Kdenlive - https://github.com/barry-lyndon/KdenParse
+* Especificaciones de documentos MLT de KdenLive - http://www.mltframework.org/twiki/bin/view/MLT/MltXml
+
+## SOFT DE SYNCRO VIDEO/AUDIO
+
+Sistema de sincronización de video con el proyecto bajo Ardour.
+
+* XJADEO - http://xjadeo.sourceforge.net/
+
+## TAREAS
+
+* Localizar info sobre la estrucutura del EDL de Cinelerra
+* Localizar info sobre la estructura del XML que usa Ardour3 para definir las sesiones
+* Reutilizar el scrypt de KdenParse para realizar el paso de Cinelerra -> Ardour3
+
+## A TENER EN CUENTA...
+
+* Debemos poder apuntar las pistas dnd nos interese, por lo menos, a un master o algo así.. así que, habrá que hacer un poco más interactivo. Esto no está definido en Cinelerra..
+* Ardour3 solo abre archivos WAV/FLAC/AIFF/¿OGG? por lo tanto, si existe aglun archivo en formato MP3 deberíamos codificarlo a WAV/OGG
+
+
+## PROCESO DE CONSTRUCCIÓN DEL NUEVO PROYECTO
+
+Kdenlive trabaja las pistas de audio de los vídeos dentro de una misma pista.. por lo que, tendremos que trascodear los clips de vídeo para extraer el audio. Para no perder información realizaremos la exportación de ese audio en format WAV, aunque podríamos utilizar tb FLAC, siendo este menos pesado, sin perdidas y leíble por Ardour3.
+
+1. Averiguar las fuentes del documento
+2. Transcodear fuentes MOV/AVI/...(todos los formatos que acepte Kdenlive) -> WAV
+3. Crear estructura de un proyecto Ardour3
+4. Localizar regiones del proyecto Kdenlive y añadirlas al proyecto Ardour3
+
+
+## Documentación relacionada con las librerías y desarrollo
+* Python + pyGTK + modulos de gestion de DOM (mirar ejemplo del kdenlive)
+* Necesitaremos hacer las codificaciones de ficheros no validos en Ardour, podemos trabajar con FFMPEG o una pipe en Gstream
+* BeautifulSoup - librerías de parseo de documentos en Python - http://www.crummy.com/software/BeautifulSoup/
+* LXML - Librería de proceso de XML y HTML bajo python - http://lxml.de/ - Debian Package: python-lxml
+* Algunos ejemplos de trabajo con ficheros bajo Python - http://code.google.com/p/asi-iesenlaces/wiki/ArchivosyDirectoriosConPython
+* Trabajo con multipistas en ecasound - http://eca.cx/ecasound/Documentation/examples.html#multitrack
+* Trabajo con Sox y audio - http://sox.sourceforge.net/sox.html
+
+## Proceso de cálculo de posiciones en Kdenlive
+El valor utilizado en el XML para marcar duraciones y entrads y salidas en la linea de tiempos se referencia por los frames del clip.
+Un ejemplo: Tenemos un clip de 8 seg y 12 frames en un proyecto de 25fps, el valor mostrado en el xml es 8*25+12=212
+
+## ESTRUCTURA DE UN SESSION ARDOUR
+
+Usaremos un proyecto creado desde cero con una pista de audio ya creada (Project)
+
+Project
+	/ analysis
+	/ dead
+	/ export
+	/externals
+	instant.xml
+	/ interchange
+		/ Project
+			/ audiofiles
+				Region-L.wav
+				Region-R.wav
+			/ midifiles
+	/ peaks
+	/ plugins
+	Project.ardour
+	Project.history
+
+### Project.ardour
+
+Fichero XML con al configuración de la sesion
+
+Cabecera:
+	<?xml version="1.0" encoding="UTF-8"?>
+
+Seccion que engloba todo el contenido
+	<Session version="3.0.0" name="Project" sample-rate="48000" id-counter="443" event-counter="0">
+
+Seccion de configuracion:
+	<Config>
+
+Definición de Opciones:
+
+	<Option name="xfade-model" value="FullCrossfade"/>
+	<Option name="auto-xfade" value="1"/>
+	....
+
+	</Config>
+
+Metadata: (no los tenemos definidos en este caso pero supongo que irían como atributos de este tag)
+	
+	<Metadata/>
+
+Fuentes de sonido (Primera parte importante a tratar con el de KDEnlive):
+Tener en cuenta que las fuentes estéreo se definen independientes por canal, por tanto tendremos dos fuentes por fuente estéreo.. supongo que la parte multicanal tambien se dividirán en canales (0 to n).
+
+	<Sources>
+		<Source name="source-L.wav" type="audio" flags="Writable,CanRename,RemovableIfEmpty" id="331" channel="0" origin="/path/source.wav"/>
+		<Source name="source-R.wav" type="audio" flags="Writable,CanRename,RemovableIfEmpty" id="333" channel="1" origin="/path/source.wav"/>
+		...
+	<Sources>
+
+Regions: aquí definimos las posiciones en la línea de tiempos sobre las cuales insertamos un tramo de una fuente. Se hace referencia al identificador del canal de cada fuente.
+
+	<Regions>
+	
+		<Region name="region-name" position="0" lenght="100000" stretch="1" muted="0" opaque="1" locked="0" automatic="0" whole-file="0" import="0" external="0" sync-marked="0" left-of-split="0" right-of-split="0" hidden="0" position-locked="0" valid-transients="0" start="0" sync-position="0" layer="0" ancestral-start="0" ancestral-length="0" shift="1" positional-lock-style="AudioTime" envelope-active="0" default-fade-in="1" default-fade-out="1" fade-in-active="1" fade-out-active="1" scale-amplitude="1" id="319" type="audio" first-edit="nothing" source-0="317" source-1="318" master-source-0="317" master-source-1="318" channels="2">
+	
+Definimos algunas opciones de la región sobre la cual trabajamos:
+	<Envelope default="yes"/>
+	<FadeIn default="yes"/>
+	<FadeOut default="yes"/>
+	</Region>
+
+	....
+	
+	</Regions>
+	
+Localizaciones: Puntos que marcamos en la linea de tiempos como el IN/OUT(name=session) del proyecto, marcas, ....
+
+	<Locations>
+		<Location id="83" name="Loop" start="0" end="1000000" flags="IsAutoLoop,IsHidden" locked="no" position-lock-style="AudioTime"/>
+		<Location id="84" name="Punch" start="0" end="1" flags="IsAutoPunch,IsHidden" locked="no" position-lock-style="AudioTime"/>
+		<Location id="393" name="session" start="0" end="100000" flags="IsSessionRange" locked="no" position-lock-style="AudioTime"/>
+		....
+
+	</Locations>
+
+Bundles: Configuraciones relacionadas con las conexiones de la session. En este caso, no estan definidas
+
+	<Bundles/>
+
+Routes: rutas de comunicacions de los puertos de In/Out de Ardour, importante la definición pq son necesarias para la creacion de los buses/pistas y regiones de la session.
+
+	<Routes>
+		<Route id="22" name="master" default-type="audio" flags="MasterOut" active="yes" phase-invert="000000" denormal-protection="no" meter-point="MeterPostFAder" order-keys="editor=0:singal=0" self-solo="no" soloed-by-upstream="0" soloed-by-downstream="0" solo-isolated="no" solo-safe="no">
+
+InOUt: Creación del puerto entrada o salida y sus conexiones Hard + Ardour buses
+
+			<IO name="master" id="39" direction="Input" default-types="audio" user-latency="0">
+
+Puerto: Definición del puertos dentro del input del master
+
+				<Port type="audio" name="master/audio_in_1">
+					<Connection other="Audio/audio_out 1"/>
+					<Connection other="Audio 1/audio_out 1"/>
+				</Port>
+				... 
+			</IO>
+			<IO name="master" id="40" direction="Output" default-type="audio" user-latency="0">
+				<Port type="audio" name="master/audio_out 1">
+					<Connection other="system:playback_1"
+				</Port>
+				...
+			</IO>
+			<Controllable name="solo" id="24" flags="Toggle" value="0.000000000000"/>
+			<Controllable name="mute" id="187" flags="Toggle" value="0.000000000000"/>
+			<Mutemaster mute-point="PreFader,PostFader,Listen,Main" muted="no"/>
+			<RemoteControl id="1"/>
+			<Pannable>
+				<Controllable name="pan-azimuth" id="30" flags="" value="0.500000000000"/>
+				<Controllable name="pan-width" id="34" flags="" value="0.000000000000"/>
+				<Controllable name="pan-elevation" id="32" flags="" value="0.000000000000"/>
+				<Controllable name="pan-frontback" id="36" flags="" value="0.000000000000"/>
+				<Controllable name="pan-lfe" id="38" flags="" value="0.000000000000"/>
+			</Pannable>
+			<Processor id="41" name="Amp" active="yes" user-latency="0" type="amp">
+				<Controllable name="gaincontrol" id="43" flags="GainLike" value="1.000000000000"/>
+			</Processor>
+			<Processor id="44" name="Meter" active="yes" user-latency="0" type="meter"/>
+			<Processor id="45" name="master" active="yes" user-latency="0" own-input="yes" own-output="no" output="master" type="main-outs" role="Main">
+				<PannerShell bypassed="no">
+					<Panner type="VBAP 2D panner"/>
+				</PannerShell>
+			</Processor>
+		</Route>
+		
+		...
+
+	</Routes>
+
+Playlist: Podemos trabajar con varias capas dentro de cada uno de las pistas, cada capa se considera una playlist con un conjunto de regiones definidas en ella.
+
+	<Playlists>
+
+		<Playlist id="367" name="Audio" type="audio" orig-diskstream-id="366" frozen="no" combine-ops="0">
+			<Region name="region.1" position="0" length="1000000" stretch="1" muted="0" opaque="1" locked="0" automatic="0" whole-file="0" import="0" external="1" sync-marked="0" laeft-of-split="0" right-of-split="0" hidden="0" position-locked="0" valid-transcients="0" shift="1" positional-lock-style="AudioTime" envelope-active="0" default-fade-in="1" default-fade-out="1" fade-in-active="1" fade-out-active="1" scale-amplitude="1" id="386" type="audio" first-edit="nothing" source-0="331" source-1="333" master-source-0="331" master-source-1="333" channels="2">
+				<Extra>
+					<GUI waveform-visible="yes" envelope-visible="no" waveform-rectified="no" waveform-logscaled="no"/>
+				</Extra>
+				<Envelope default="yes"/>
+				<FadeIn default="yes"/>
+				<FadeOut default="yes"/>
+			</Region>
+		</Playlist>
+		...
+	</Playlists>
+	<UnusedPlaylists/>
+
+Seguimos definiendo relaciones de componentes de ardour con los IO del sistema.
+
+	<RouteGroups/>
+
+Definimos la claqueta..
+
+	<Click>
+		<IO name="click" id="47" direction="Output" default-type="audio" user-latency="0">
+			<Port type="audio" name="click/audio_out 1">
+				<Connection other="system:playback_1">
+			</Port>
+			...
+		</IO>
+	</Click>
+	<NamedSelections/>
+
+Definimos la posición de los altavoces
+	
+	<Speakers>
+		<Speaker azimuth="0" elevation="0" distance="1"/>
+		<Speaker azimuth="180" elevation="0" distance="0"/>
+	</Speakers>
+
+Definimos el tempo de la sesion 
+
+	<TempoMap>
+		<Tempo start="1|1|0" beats-per-minute="120.000000" note-type="4.000000" movable="no"/>
+		<Meter start="1|1|0" note-type="4.000000" beats-per-bar="4.000000" movable="no"/>
+	</TempoMap>
+
+Definimos los métoso de control por MIDI (GEneric midi..y listo..)
+
+	<ControlProtocols>
+		<Protocol name="Generic MIDI" feedback="0" feedback-interval="10000" active="yes">
+			<Controls/>
+		</Protocol>
+		...
+	</ControlProtocols>
+
+Extras de la sesion:
+
+	<Extra>
+		<ClockModes>
+			<Clock name="primary" mode="Timecode" on="yes"/>
+			....
+				
+
+	</Session>
